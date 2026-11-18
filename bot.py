@@ -4,11 +4,12 @@ from discord.ext import commands, tasks
 import datetime
 
 # ================= การตั้งค่า =================
-TOKEN = os.getenv('DISCORD_TOKEN')  # ดึง Token จาก Railway
-CHANNEL_ID = 1556023754449092669    # ID ของช่องแชต
-TARGET_USER_ID = 000000000000000000 # ใส่ User ID ของ resolute._.p (แนะนำ)
-TARGET_USERNAME = 'resolute._.p'    # สำรองกรณีไม่ได้ใส่ User ID
-TIMEOUT_MINUTES = 10                # ระยะเวลา (นาที)
+TOKEN = os.getenv('DISCORD_TOKEN')          # ดึง Token จาก Railway
+WATCH_CHANNEL_ID = 1556023754449092669      # ช่องที่จับเวลา (หากไม่มีข้อความเข้าเกิน 10 นาที)
+ALERT_CHANNEL_ID = 1572222518943686747      # ช่องปลายทางที่จะให้ส่งแจ้งเตือน
+TARGET_USER_ID = 000000000000000000         # ใส่ User ID ของ resolute._.p (ถ้ามี)
+TARGET_USERNAME = 'resolute._.p'            # ชื่อผู้ใช้สำหรับแท็ก
+TIMEOUT_MINUTES = 10                        # ระยะเวลาที่กำหนด (นาที)
 # ===========================================
 
 intents = discord.Intents.default()
@@ -20,7 +21,6 @@ bot = commands.Bot(command_prefix='!', intents=intents)
 last_message_time = None
 has_notified = False
 
-# ฟังก์ชันช่วยหาข้อความสำหรับแท็ก (ใช้ร่วมกันทั้งระบบจริงและคำสั่ง /test)
 def get_mention_text(guild):
     if TARGET_USER_ID != 0:
         return f"<@{TARGET_USER_ID}>"
@@ -35,7 +35,6 @@ async def on_ready():
     global last_message_time
     print(f'ล็อกอินสำเร็จในชื่อ: {bot.user}')
     
-    # ซิงค์คำสั่ง Slash Command (/test) ให้ขึ้นใน Discord
     try:
         synced = await bot.tree.sync()
         print(f'ซิงค์คำสั่ง Slash Command สำเร็จ {len(synced)} คำสั่ง')
@@ -46,13 +45,18 @@ async def on_ready():
     if not check_inactivity.is_running():
         check_inactivity.start()
 
-# สร้างคำสั่ง /test
-@bot.tree.command(name="test", description="ทดสอบข้อความแจ้งเตือนเมื่อไม่มีคนพิมพ์เกินเวลาที่กำหนด")
+# คำสั่ง /test สำหรับกดทดสอบส่งไปที่ช่อง 1572222518943686747 ทันที
+@bot.tree.command(name="test", description="ทดสอบส่งข้อความแจ้งเตือนไปยังช่องปลายทาง")
 async def test_alert(interaction: discord.Interaction):
-    mention_text = get_mention_text(interaction.guild)
-    await interaction.response.send_message(
-        f"🧪 **[ข้อความทดสอบ]**\n⏰ {mention_text} ไม่มีข้อความในช่องนี้เกิน {TIMEOUT_MINUTES} นาทีแล้ว!"
-    )
+    alert_channel = bot.get_channel(ALERT_CHANNEL_ID)
+    if alert_channel:
+        mention_text = get_mention_text(alert_channel.guild)
+        await alert_channel.send(
+            f"🧪 **[ข้อความทดสอบ]**\n⏰ {mention_text} ไม่มีข้อความในช่อง <#{WATCH_CHANNEL_ID}> เกิน {TIMEOUT_MINUTES} นาทีแล้ว!"
+        )
+        await interaction.response.send_message(f"✅ ส่งข้อความทดสอบไปที่ช่อง <#{ALERT_CHANNEL_ID}> เรียบร้อยแล้ว!", ephemeral=True)
+    else:
+        await interaction.response.send_message(f"❌ ไม่พบช่องแจ้งเตือน (ID: `{ALERT_CHANNEL_ID}`) กรุณาเช็กสิทธิ์ของบอทในช่องนั้น", ephemeral=True)
 
 @bot.event
 async def on_message(message):
@@ -60,7 +64,8 @@ async def on_message(message):
     if message.author == bot.user:
         return
 
-    if message.channel.id == CHANNEL_ID:
+    # นับเวลาใหม่ทุกครั้งที่มีข้อความเข้าในช่อง 1556023754449092669
+    if message.channel.id == WATCH_CHANNEL_ID:
         last_message_time = datetime.datetime.now(datetime.timezone.utc)
         has_notified = False
 
@@ -75,11 +80,14 @@ async def check_inactivity():
     now = datetime.datetime.now(datetime.timezone.utc)
     elapsed = now - last_message_time
 
+    # หากครบ 10 นาทีและยังไม่เคยแจ้งเตือน ให้ส่งไปที่ช่อง 1572222518943686747
     if elapsed >= datetime.timedelta(minutes=TIMEOUT_MINUTES) and not has_notified:
-        channel = bot.get_channel(CHANNEL_ID)
-        if channel:
-            mention_text = get_mention_text(channel.guild)
-            await channel.send(f"⏰ {mention_text} ไม่มีข้อความในช่องนี้เกิน {TIMEOUT_MINUTES} นาทีแล้ว!")
+        alert_channel = bot.get_channel(ALERT_CHANNEL_ID)
+        if alert_channel:
+            mention_text = get_mention_text(alert_channel.guild)
+            await alert_channel.send(
+                f"⏰ {mention_text} ไม่มีข้อความในช่อง <#{WATCH_CHANNEL_ID}> เกิน {TIMEOUT_MINUTES} นาทีแล้ว!"
+            )
             has_notified = True
 
 if TOKEN:
