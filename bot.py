@@ -52,7 +52,7 @@ async def test_alert(interaction: discord.Interaction):
     if alert_channel:
         mention_text = get_mention_text(alert_channel.guild)
         await alert_channel.send(
-            f"🧪 **[ข้อความทดสอบ]**\n⏰ {mention_text} ไม่มีข้อความในช่อง <#{WATCH_CHANNEL_ID}> เกิน {TIMEOUT_MINUTES} นาทีแล้ว!"
+            f"🧪 **[ข้อความทดสอบ]**\n{mention_text} เข้าcloud phoneมาเช็คหน่อยหลุดรึป่าว"
         )
         await interaction.response.send_message(f"✅ ส่งข้อความทดสอบไปที่ช่อง <#{ALERT_CHANNEL_ID}> เรียบร้อยแล้ว!", ephemeral=True)
     else:
@@ -86,7 +86,7 @@ async def check_inactivity():
         if alert_channel:
             mention_text = get_mention_text(alert_channel.guild)
             await alert_channel.send(
-                f"⏰ {mention_text} ไม่มีข้อความในช่อง <#{WATCH_CHANNEL_ID}> เกิน {TIMEOUT_MINUTES} นาทีแล้ว!"
+                f"{mention_text} เข้าcloud phoneมาเช็คหน่อยหลุดรึป่าว"
             )
             has_notified = True
 
